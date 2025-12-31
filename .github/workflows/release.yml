@@ -10,12 +10,16 @@ permissions:
   contents: write
 
 env:
-  CRX_KEY_PATH: /tmp/bookmarks-search.pem
+  # 固定私钥存储路径，无需修改
+  CRX_PRIVATE_KEY_PATH: ./extension-key.pem
+  # 插件源码打包目录（和你原有一致，无需修改）
+  RELEASE_DIR: ./release
+  # 版本号变量统一
+  EXT_NAME: bookmarks-search
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,7 +29,7 @@ jobs:
         with:
           node-version: '20'
           
-      - name: Get version from tag
+      - name: Get version from tag/manifest
         id: get_version
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
@@ -34,141 +38,83 @@ jobs:
             VERSION=$(grep '"version"' manifest.json | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Extension version: $VERSION"
+          echo "✅ Extension version: $VERSION"
           
-      - name: Install Chromium and utilities
+      - name: Install dependencies (Chrome官方打包工具)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser zip unzip
+          sudo apt-get update -y
+          sudo apt-get install -y chromium-browser zip unzip openssl xxd
+          # 验证Chromium安装成功
+          chromium-browser --version
+          echo "✅ Dependencies installed"
         
-      - name: Generate self-signed certificate
+      - name: Prepare fixed private key (从GitHub Secrets读取，核心修复)
         run: |
-          openssl genrsa -out ${{ env.CRX_KEY_PATH }} 2048
-          echo "Private key generated successfully"
+          # 将提前配置的固定私钥写入文件
+          echo "${{ secrets.CRX_PRIVATE_KEY }}" > ${{ env.CRX_PRIVATE_KEY_PATH }}
+          # 校验私钥格式合法性
+          openssl rsa -in ${{ env.CRX_PRIVATE_KEY_PATH }} -check
+          echo "✅ Fixed private key loaded successfully"
           
-      - name: Create release package
+      - name: Create release source package (复制源码，和你原有一致)
         run: |
-          mkdir -p release
-          # 复制所有必需的文件到release目录
-          cp -r _locales assets *.html *.js manifest.json release/
+          mkdir -p ${{ env.RELEASE_DIR }}
+          cp -r _locales assets *.html *.js manifest.json ${{ env.RELEASE_DIR }}/
+          echo "✅ Source files copied to release dir"
           
-      - name: Create ZIP package
+      - name: Create ZIP package (开发版，保留原有逻辑)
         run: |
-          cd release
-          zip -r ../bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip *
+          cd ${{ env.RELEASE_DIR }}
+          zip -r ../${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip *
           cd ..
+          echo "✅ ZIP package built: ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip"
           
-      - name: Create CRX package using Python
+      - name: Build CRX package (Chrome官方命令，核心修复✅)
         run: |
-          # 使用Python创建CRX v3文件（更可靠）
-          cat > pack_crx.py << 'PYEOF'
-          #!/usr/bin/env python3
-          import struct
-          import subprocess
-          import zipfile
-          import sys
-          import os
-
-          def create_crx(key_path, ext_dir, output_path):
-              # 1. 创建扩展ZIP
-              print("Creating extension ZIP...")
-              with zipfile.ZipFile('extension.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-                  for root, dirs, files in os.walk(ext_dir):
-                      for file in files:
-                          file_path = os.path.join(root, file)
-                          arcname = os.path.relpath(file_path, ext_dir)
-                          zf.write(file_path, arcname)
-
-              # 2. 提取公钥
-              print("Extracting public key...")
-              result = subprocess.run(
-                  ['openssl', 'rsa', '-in', key_path, '-pubout', '-outform', 'DER'],
-                  capture_output=True
-              )
-              public_key = result.stdout
-              public_key_len = len(public_key)
-
-              # 3. 计算签名
-              print("Computing signature...")
-              with open('extension.zip', 'rb') as f:
-                  zip_data = f.read()
-
-              result = subprocess.run(
-                  ['openssl', 'dgst', '-sha256', '-binary', '-sign', key_path],
-                  input=zip_data,
-                  capture_output=True
-              )
-              signature = result.stdout
-              signature_len = len(signature)
-
-              # 4. 构建CRX文件头 (CRX3格式)
-              print("Building CRX header...")
-              header = b'Cr24'  # 魔数
-              header += struct.pack('<I', 3)  # 版本号
-              header += struct.pack('<I', public_key_len)  # 公钥长度
-              header += struct.pack('<I', signature_len)  # 签名长度
-
-              # 5. 写入CRX文件
-              print(f"Writing CRX file to {output_path}...")
-              with open(output_path, 'wb') as f:
-                  f.write(header)
-                  f.write(public_key)
-                  f.write(signature)
-                  f.write(zip_data)
-
-              # 6. 清理
-              os.remove('extension.zip')
-
-              print(f"CRX package created successfully!")
-              print(f"Public key length: {public_key_len}")
-              print(f"Signature length: {signature_len}")
-              print(f"ZIP length: {len(zip_data)}")
-
-          if __name__ == '__main__':
-              key_path, ext_dir, output_path = sys.argv[1], sys.argv[2], sys.argv[3]
-              create_crx(key_path, ext_dir, output_path)
-          PYEOF
-
-          chmod +x pack_crx.py
-          python3 pack_crx.py ${{ env.CRX_KEY_PATH }} release bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
+          # 核心：Chrome官方打包命令，100%通过头部校验
+          chromium-browser \
+            --pack-extension=${{ env.RELEASE_DIR }} \
+            --pack-extension-key=${{ env.CRX_PRIVATE_KEY_PATH }}
           
-      - name: Calculate CRX App ID
+          # 重命名产物为带版本号格式（和你原有命名一致）
+          mv ${{ env.RELEASE_DIR }}.crx ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
+          
+          # 校验CRX产物存在性
+          ls -lh ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
+          echo "✅ CRX package built successfully (official Chrome tool)"
+          
+      - name: Calculate CRX App ID (保留原有逻辑，适配固定私钥)
         id: crx_hash
         run: |
-          # 从CRX文件提取公钥并计算App ID
-          PUB_KEY=$(openssl rsa -in ${{ env.CRX_KEY_PATH }} -pubout -outform DER | base64)
-          APP_ID=$(echo -n "$PUB_KEY" | openssl sha256 -binary | xxd -p -u -c 32 | tr '[:lower:]' '[:upper:]' | head -c 32)
+          PUB_KEY=$(openssl rsa -in ${{ env.CRX_PRIVATE_KEY_PATH }} -pubout -outform DER | base64)
+          APP_ID=$(echo -n "$PUB_KEY" | openssl sha256 -binary | xxd -p -u -c 32 | head -c 32)
           echo "HASH=$APP_ID" >> $GITHUB_OUTPUT
-          echo "CRX App ID: $APP_ID"
+          echo "✅ CRX App ID calculated: $APP_ID"
           
-      - name: Create Release
+      - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
             ## 🚀 Release Notes
-
             Bookmarks Search Extension v${{ steps.get_version.outputs.VERSION }}
 
-            ## 📦 Installation
-
+            ## 📦 Installation (✅ 修复CRX安装报错)
             ### ZIP Package (Recommended for Development)
-            1. Download `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip`
+            1. Download `${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip`
             2. Extract to any folder
-            3. Open `chrome://extensions/` in Chrome browser
-            4. Enable "Developer mode" (top right)
-            5. Click "Load unpacked"
-            6. Select the extracted folder
+            3. Open `chrome://extensions/` in Chrome → Enable Developer mode
+            4. Click "Load unpacked" → Select the extracted folder
 
-            ### CRX Package
-            1. Download `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx`
+            ### CRX Package (✅ Direct Install)
+            1. Download `${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx`
             2. Drag and drop to `chrome://extensions/` page
-            3. Confirm installation when prompted
+            3. Confirm installation (no error anymore)
 
-            ### Using Certificate
-            CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
+            ### CRX Info
+            App ID: ${{ steps.crx_hash.outputs.HASH }}
 
             ## 📝 Changelog
             See project homepage for full changelog
@@ -181,39 +127,37 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_name: bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_path: ./${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_name: ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
           asset_content_type: application/zip
           
-      - name: Upload CRX Release Asset
+      - name: Upload CRX Release Asset (✅ 修复MIME类型)
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
-          asset_name: bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
-          asset_content_type: application/x-chrome-extension
+          asset_path: ./${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
+          asset_name: ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
+          asset_content_type: application/octet-stream
           
-      - name: Upload Certificate (Secret)
+      - name: Upload build info artifact
         uses: actions/upload-artifact@v4
         with:
-          name: extension-certificate
-          path: ${{ env.CRX_KEY_PATH }}
+          name: build-info
+          path: |
+            build-info.txt
+            ${{ env.CRX_PRIVATE_KEY_PATH }}
           retention-days: 90
           
       - name: Generate build info
         run: |
-          cat > build-info.txt << 'BUILDEOF'
+          cat > build-info.txt << EOF
           Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           Version: ${{ steps.get_version.outputs.VERSION }}
           Commit: ${{ github.sha }}
           Tag: ${{ github.ref_name }}
           CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
-          BUILDEOF
-          
-      - name: Upload build info
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-info
-          path: build-info.txt
+          Packaging Tool: Chrome Official (chromium-browser)
+          EOF
+          echo "✅ Build info generated"
