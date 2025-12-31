@@ -10,11 +10,8 @@ permissions:
   contents: write
 
 env:
-  # 固定私钥存储路径，无需修改
   CRX_PRIVATE_KEY_PATH: ./extension-key.pem
-  # 插件源码打包目录（和你原有一致，无需修改）
   RELEASE_DIR: ./release
-  # 版本号变量统一
   EXT_NAME: bookmarks-search
 
 jobs:
@@ -29,122 +26,92 @@ jobs:
         with:
           node-version: '20'
           
-      - name: Get version from tag/manifest
+      - name: Get version from tag/manifest (修复版本号拼接)
         id: get_version
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION=$(grep '"version"' manifest.json | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            VERSION=$(grep -E '"version"\s*:\s*"[^"]+"' manifest.json | sed -E 's/.*"version"\s*:\s*"([^"]+)".*/\1/')
           fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "✅ Extension version: $VERSION"
+          # 统一版本号格式，避免v前缀重复
+          CLEAN_VERSION=${VERSION#v}
+          echo "VERSION=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+          echo "TAG_VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Extension version: $CLEAN_VERSION (tag: $VERSION)"
           
-      - name: Install dependencies (Chrome官方打包工具)
+      - name: Install dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y chromium-browser zip unzip openssl xxd
-          # 验证Chromium安装成功
           chromium-browser --version
-          echo "✅ Dependencies installed"
         
-      - name: Prepare fixed private key (从GitHub Secrets读取，核心修复)
+      - name: Prepare fixed private key
         run: |
-          # 将提前配置的固定私钥写入文件
           echo "${{ secrets.CRX_PRIVATE_KEY }}" > ${{ env.CRX_PRIVATE_KEY_PATH }}
-          # 校验私钥格式合法性
           openssl rsa -in ${{ env.CRX_PRIVATE_KEY_PATH }} -check
-          echo "✅ Fixed private key loaded successfully"
+          echo "✅ Private key loaded"
           
-      - name: Create release source package (复制源码，和你原有一致)
+      - name: Create release source package
         run: |
           mkdir -p ${{ env.RELEASE_DIR }}
-          cp -r _locales assets *.html *.js manifest.json ${{ env.RELEASE_DIR }}/
-          echo "✅ Source files copied to release dir"
+          cp -r _locales assets *.html *.js manifest.json ${{ env.RELEASE_DIR }}/ 2>/dev/null
+          echo "✅ Source files copied"
           
-      - name: Create ZIP package (开发版，保留原有逻辑)
+      - name: Create ZIP package
         run: |
           cd ${{ env.RELEASE_DIR }}
           zip -r ../${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip *
           cd ..
-          echo "✅ ZIP package built: ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip"
+          ls -lh ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
+          echo "✅ ZIP package built"
           
-      - name: Build CRX package (Chrome官方命令，核心修复✅)
+      - name: Build CRX package (Chrome官方命令)
         run: |
-          # 核心：Chrome官方打包命令，100%通过头部校验
           chromium-browser \
             --pack-extension=${{ env.RELEASE_DIR }} \
             --pack-extension-key=${{ env.CRX_PRIVATE_KEY_PATH }}
-          
-          # 重命名产物为带版本号格式（和你原有命名一致）
           mv ${{ env.RELEASE_DIR }}.crx ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
-          
-          # 校验CRX产物存在性
           ls -lh ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
-          echo "✅ CRX package built successfully (official Chrome tool)"
+          echo "✅ CRX package built"
           
-      - name: Calculate CRX App ID (保留原有逻辑，适配固定私钥)
+      - name: Calculate CRX App ID
         id: crx_hash
         run: |
           PUB_KEY=$(openssl rsa -in ${{ env.CRX_PRIVATE_KEY_PATH }} -pubout -outform DER | base64)
-          APP_ID=$(echo -n "$PUB_KEY" | openssl sha256 -binary | xxd -p -u -c 32 | head -c 32)
+          APP_ID=$(echo -n "$PUB_KEY" | openssl sha256 -binary | xxd -p -u -c32 | head -c32)
           echo "HASH=$APP_ID" >> $GITHUB_OUTPUT
-          echo "✅ CRX App ID calculated: $APP_ID"
+          echo "✅ CRX App ID: $APP_ID"
           
-      - name: Create GitHub Release
+      - name: Create GitHub Release (核心修复：新版动作)
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ steps.get_version.outputs.TAG_VERSION }}
+          name: Release v${{ steps.get_version.outputs.VERSION }}
           body: |
-            ## 🚀 Release Notes
-            Bookmarks Search Extension v${{ steps.get_version.outputs.VERSION }}
-
-            ## 📦 Installation (✅ 修复CRX安装报错)
-            ### ZIP Package (Recommended for Development)
+            ## 🚀 Bookmarks Search v${{ steps.get_version.outputs.VERSION }}
+            ## 📦 Installation
+            ### ZIP Package (Recommended)
             1. Download `${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip`
-            2. Extract to any folder
-            3. Open `chrome://extensions/` in Chrome → Enable Developer mode
-            4. Click "Load unpacked" → Select the extracted folder
-
-            ### CRX Package (✅ Direct Install)
+            2. Chrome → `chrome://extensions/` → 开启开发者模式 → 加载已解压的扩展程序
+            ### CRX Package
             1. Download `${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx`
-            2. Drag and drop to `chrome://extensions/` page
-            3. Confirm installation (no error anymore)
-
-            ### CRX Info
-            App ID: ${{ steps.crx_hash.outputs.HASH }}
-
-            ## 📝 Changelog
-            See project homepage for full changelog
+            2. 拖拽至 `chrome://extensions/` 页面安装
+            ## 📌 Info
+            - CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
+            - Commit: ${{ github.sha }}
           draft: false
           prerelease: false
+          # ✅ 核心：直接在该步骤上传所有资产，废弃旧版upload-release-asset
+          files: |
+            ./${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
+            ./${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
           
-      - name: Upload ZIP Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_name: ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_content_type: application/zip
-          
-      - name: Upload CRX Release Asset (✅ 修复MIME类型)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
-          asset_name: ${{ env.EXT_NAME }}-${{ steps.get_version.outputs.VERSION }}.crx
-          asset_content_type: application/octet-stream
-          
-      - name: Upload build info artifact
+      - name: Upload build info & key
         uses: actions/upload-artifact@v4
         with:
-          name: build-info
+          name: build-info-and-key
           path: |
             build-info.txt
             ${{ env.CRX_PRIVATE_KEY_PATH }}
@@ -155,9 +122,8 @@ jobs:
           cat > build-info.txt << EOF
           Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           Version: ${{ steps.get_version.outputs.VERSION }}
+          Tag: ${{ steps.get_version.outputs.TAG_VERSION }}
           Commit: ${{ github.sha }}
-          Tag: ${{ github.ref_name }}
           CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
-          Packaging Tool: Chrome Official (chromium-browser)
           EOF
           echo "✅ Build info generated"
