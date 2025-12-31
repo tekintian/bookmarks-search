@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  CHROME_EXTENSIONS_ZIP: https://github.com/Julusian/chrome-extensions-zip/releases/download/v1.0.0/chrome-extensions-zip-v1.0.0-amd64
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,43 +36,76 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Extension version: $VERSION"
           
+      - name: Download chrome-extensions-zip tool
+        run: |
+          wget -O chrome-extensions-zip ${{ env.CHROME_EXTENSIONS_ZIP }}
+          chmod +x chrome-extensions-zip
+          
+      - name: Generate self-signed certificate
+        run: |
+          openssl genrsa -out bookmarks-search.pem 2048
+          
       - name: Create release package
         run: |
           mkdir -p release
           # 复制所有必需的文件到release目录
           cp -r _locales assets *.html *.js manifest.json release/
-          # 打包成zip文件
+          
+      - name: Create ZIP package
+        run: |
           cd release
           zip -r ../bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip *
           cd ..
           
+      - name: Create CRX package
+        run: |
+          # 使用chrome-extensions-zip工具打包为crx
+          ./chrome-extensions-zip pack \
+            --key bookmarks-search.pem \
+            --output bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx \
+            release
+          
+      - name: Calculate CRX file hash
+        id: crx_hash
+        run: |
+          HASH=$(openssl sha1 -binary bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx | xxd -p -u -c 20)
+          echo "HASH=$HASH" >> $GITHUB_OUTPUT
+          
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
-            ## 🚀 发布说明
+            ## 🚀 Release Notes
             
-            书签搜索扩展 ${{ steps.get_version.outputs.VERSION }} 版本
+            Bookmarks Search Extension v${{ steps.get_version.outputs.VERSION }}
             
-            ### 📦 安装方式
-            1. 下载 `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip`
-            2. 解压到任意文件夹
-            3. 在 Chrome 浏览器中打开 `chrome://extensions/`
-            4. 开启"开发者模式"
-            5. 点击"加载已解压的扩展程序"
-            6. 选择解压后的文件夹
+            ## 📦 Installation
             
-            ### 📝 更新内容
-            查看完整更新日志请访问项目主页
+            ### ZIP Package (Recommended for Development)
+            1. Download `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip`
+            2. Extract to any folder
+            3. Open `chrome://extensions/` in Chrome browser
+            4. Enable "Developer mode" (top right)
+            5. Click "Load unpacked"
+            6. Select the extracted folder
+            
+            ### CRX Package
+            1. Download `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx`
+            2. Drag and drop to `chrome://extensions/` page
+            3. Confirm installation when prompted
+            
+            ### Using Certificate
+            CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
+            
+            ## 📝 Changelog
+            See project homepage for full changelog
           draft: false
           prerelease: false
           
-      - name: Upload Release Asset
+      - name: Upload ZIP Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,6 +115,23 @@ jobs:
           asset_name: bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip
           asset_content_type: application/zip
           
+      - name: Upload CRX Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
+          asset_name: bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
+          asset_content_type: application/x-chrome-extension
+          
+      - name: Upload Certificate (Secret)
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-certificate
+          path: bookmarks-search.pem
+          retention-days: 90
+          
       - name: Generate build info
         run: |
           cat > build-info.txt << EOF
@@ -86,6 +139,7 @@ jobs:
           Version: ${{ steps.get_version.outputs.VERSION }}
           Commit: ${{ github.sha }}
           Tag: ${{ github.ref_name }}
+          CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
           EOF
           
       - name: Upload build info
