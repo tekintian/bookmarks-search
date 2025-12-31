@@ -1,0 +1,112 @@
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<link href="assets/css/popup.css" media="screen" rel="stylesheet" type="text/css" />
+		<script src="assets/js/jquery-3.7.1.min.js"></script>
+		<script src="assets/js/jquery-ui-1.8.5.custom.min.js"></script>
+		<script src="popup.js"></script>
+	</head>
+	<body>
+		<div id="header-box">
+			<img id="header-box-back" border="0" src="assets/img/back.png" style="display: none;">
+			<span id="header-box-title">Bookamrk</span>
+		</div>
+		<div id="home-box">
+			<div id="search-box2">
+				<div id="back-box"><div id="button-back"></div></div>
+				<div id="input-box"><input id="input-query" type="text"></div>
+				<div id="input-clear-box"><img src="assets/img/Blank.png"></img></div>
+				<div id="search-type-box">
+					<button>
+						<span class="button-label"></span>
+						<img src="assets/img/Blank.png" class="dropdown-menu-marker"></img>
+					</button>
+					<ul id="search-type-menu" class="dropdown-menu">
+						<li value="0" short-label="All"><img src="assets/img/Blank.png" class="star" value="0"><div class="label" href="#">All</div></li>
+						<li value="1" short-label="Initial"><img src="assets/img/Blank.png" class="star" value="1"><div class="label" href="#">Initial</div></li>
+						<li value="2" short-label="Filter"><img src="assets/img/Blank.png" class="star"  value="2"><div class="label" href="#">Filter</div></li>
+					</ul>
+				</div>
+			</div>
+			<div id="search" style="display:none">
+				<div id="search-box">
+					<div id="back-box"><div id="button-back"></div></div>
+					<div id="input-box">
+						<input id="input-query" timeout="400" placeholder="search">
+					</div>
+				</div>
+<!-- 				<span id="search-box">
+					<span id="button-back"></span>
+					<input id="input-query" timeout="400" placeholder="search">
+				</span> -->
+					<!-- <span id="search-icon"><img src="assets/img/search.png"></span> -->
+				
+			</div>
+			<ul id="list"></ul>
+		</div>
+	
+		
+		<div id="template-box">
+			<li id="template-item">
+				<span class='item-title'></span>
+				<span class='item-url'></span>
+			</li>
+			<li id="template-search-item">
+				<span class='item-title'></span>
+				<span class='item-url'></span>
+				<span class='item-parent-title'><span class="spacer"></span><a></a></span>
+			</li>
+		</div>
+		
+
+		<ul id="contextmenu">
+			
+ 			<li id="contextmenu-open">
+				<div class='contextmenu-box'>
+					<div class="contextmenu-box-label">Open:</div><div class="spacer"></div><div class="contextmenu-box-buttons"><span id="contextmenu-item-tab" class='left'>Tab</span><span id="contextmenu-item-window" class='center'>Window</span><span id="contextmenu-item-incognito" class='right'>Incognito</span></div>
+				</div>
+			</li>
+			<li id="contextmenu-action">
+				<div class='contextmenu-box'>
+					<div class="contextmenu-box-label">Action:</div><div class="spacer"></div><div class="contextmenu-box-buttons"><span id="contextmenu-item-edit" class='left'>Edit</span><span id="contextmenu-item-remove" class='right'>Remove</span></div>
+				</div>
+			</li>
+<!-- 			<li id='contextmenu-item-edit'></li>
+			<li id='contextmenu-item-delete'></li> -->
+		</ul>
+		<div id="mask-box" >
+			<div id="edit-box">
+				<div class="dialog-title"></div>
+				<div id="edit-box-title" class="article-box">
+					<div class="article-title">Title</div>
+					<div class="article-input-box"><textarea id="edit-box-title-input" class="article-input"></textarea></div>
+				</div>
+				<div id="edit-box-url" class="article-box">
+					<div class="article-title">URL</div>
+					<div class="article-input-box"><textarea id="edit-box-url-input" class="article-input"></textarea></div>
+				</div>
+<!-- 				<div id="edit-box-title">
+					<div>Title</div>
+					<div><input id="edit-box-title-input" type="text"></div> 
+				</div> -->
+<!-- 				<div id="edit-box-url">
+					<div>URL</div>
+					<div><input id="edit-box-url-input" type="text"></div>
+				</div> -->
+				<div id="edit-box-buttons">
+					<span id="edit-box-button-ok" class="-ui-button">Update</span>
+					<span id="edit-box-button-cancel" class="-ui-button">Cancel</span>
+				</div>
+			</div>
+			<div id="remove-box">
+				<div class="dialog-title"></div>
+				<div id="remove-box-msg">are you shure remove?</div>
+				<div id="remove-box-buttons">
+					<span id="remove-box-button-ok" class="-ui-button">Remove</span>
+					<span id="remove-box-button-cancel" class="-ui-button">Cancel</span>
+				</div>
+			</div>
+		</div>
+		<section id="dummy-box"></section>
+	</body>
+</html>

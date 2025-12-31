@@ -1,0 +1,18 @@
+body{
+	background-color: #C5CCD4;
+	max-width: 320px;
+	margin: auto;
+}
+
+.content{
+	padding: 9px;
+	margin: 10px 0px;
+	background-color: #FFFFFF;
+
+	border-color: #ACACAC;
+	border-radius: 5px;
+	border-width: 2px;
+}
+
+label{font-size: small !important;}
+

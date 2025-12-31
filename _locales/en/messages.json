@@ -1,0 +1,100 @@
+{
+   "btn_back": {
+      "message": "Back"
+   },
+   "btn_cancel": {
+      "message": "Cancel"
+   },
+   "btn_close": {
+      "message": "Close"
+   },
+   "btn_done": {
+      "message": "Done"
+   },
+   "btn_edit": {
+      "message": "Rename"
+   },
+   "btn_no": {
+      "message": "No"
+   },
+   "btn_off": {
+      "message": "Off"
+   },
+   "btn_on": {
+      "message": "On"
+   },
+   "btn_remove": {
+      "message": "Delete"
+   },
+   "btn_yes": {
+      "message": "Yes"
+   },
+   "def_title": {
+      "message": "Bookmarks"
+   },
+   "extBtnTitle": {
+      "message": "Bookmarks Search"
+   },
+   "extDesc": {
+      "message": "A powerful Chrome browser extension that allows you to quickly and efficiently search and manage your bookmarks from the toolbar button."
+   },
+   "extName": {
+      "message": "Search on Bookmark"
+   },
+   "lbl_recent": {
+      "message": "Recently Bookmarks"
+   },
+   "msg_edit_title": {
+      "message": "Edit Bookmark Title"
+   },
+   "msg_edit_title_folder": {
+      "message": "Edit Folder Name"
+   },
+   "msg_remove": {
+      "message": "Confirm Delete Bookmark? "
+   },
+   "msg_remove_folder": {
+      "message": "Confirm Delete Folder? "
+   },
+   "msg_reqired": {
+      "message": "Reqired"
+   },
+   "msg_search": {
+      "message": "Search Bookmarks"
+   },
+   "pref_label_current": {
+      "message": "Current Tab"
+   },
+   "pref_label_flash": {
+      "message": "Open and Remove"
+   },
+   "pref_label_initialsearch": {
+      "message": "Initial Search"
+   },
+   "pref_label_off": {
+      "message": "Off"
+   },
+   "pref_label_on": {
+      "message": "On"
+   },
+   "pref_label_selected": {
+      "message": "New Tab Selected"
+   },
+   "pref_label_tab": {
+      "message": "New Tab"
+   },
+   "pref_label_window": {
+      "message": "New Window"
+   },
+   "pref_title": {
+      "message": "Options"
+   },
+   "search_result": {
+      "message": "$item$ items",
+      "placeholders": {
+         "item": {
+            "content": "$1"
+         }
+      }
+   }
+}

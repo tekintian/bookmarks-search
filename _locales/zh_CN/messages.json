@@ -1,0 +1,100 @@
+{
+   "btn_back": {
+      "message": "返回"
+   },
+   "btn_cancel": {
+      "message": "取消"
+   },
+   "btn_close": {
+      "message": "关闭"
+   },
+   "btn_done": {
+      "message": "完成"
+   },
+   "btn_edit": {
+      "message": "重命名"
+   },
+   "btn_no": {
+      "message": "否"
+   },
+   "btn_off": {
+      "message": "关闭"
+   },
+   "btn_on": {
+      "message": "开启"
+   },
+   "btn_remove": {
+      "message": "删除"
+   },
+   "btn_yes": {
+      "message": "是"
+   },
+   "def_title": {
+      "message": "书签"
+   },
+   "extBtnTitle": {
+      "message": "书签搜索"
+   },
+   "extDesc": {
+      "message": "一个功能强大的 Chrome 浏览器扩展，让您能够快速、高效地从工具栏按钮搜索和管理书签。"
+   },
+   "extName": {
+      "message": "书签搜索"
+   },
+   "lbl_recent": {
+      "message": "最近书签"
+   },
+   "msg_edit_title": {
+      "message": "编辑书签标题"
+   },
+   "msg_edit_title_folder": {
+      "message": "编辑文件夹名称"
+   },
+   "msg_remove": {
+      "message": "确认删除书签？"
+   },
+   "msg_remove_folder": {
+      "message": "确认删除文件夹？"
+   },
+   "msg_reqired": {
+      "message": "必填"
+   },
+   "msg_search": {
+      "message": "搜索书签"
+   },
+   "pref_label_current": {
+      "message": "当前标签页"
+   },
+   "pref_label_flash": {
+      "message": "打开并移除"
+   },
+   "pref_label_initialsearch": {
+      "message": "初始搜索"
+   },
+   "pref_label_off": {
+      "message": "关闭"
+   },
+   "pref_label_on": {
+      "message": "开启"
+   },
+   "pref_label_selected": {
+      "message": "选中新标签页"
+   },
+   "pref_label_tab": {
+      "message": "新标签页"
+   },
+   "pref_label_window": {
+      "message": "新窗口"
+   },
+   "pref_title": {
+      "message": "选项"
+   },
+   "search_result": {
+      "message": "$item$ 项",
+      "placeholders": {
+         "item": {
+            "content": "$1"
+         }
+      }
+   }
+}
