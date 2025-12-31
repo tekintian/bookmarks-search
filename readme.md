@@ -176,6 +176,11 @@ A powerful Chrome browser extension that allows you to quickly and efficiently s
 - `<all_urls>`: 访问所有网站（用于加载网站图标）  
   `<all_urls>`: Access all websites (for loading website icons)
 
+## GitHub Actions
+https://github.com/tekintian/bookmarks-search
+
+
+
 ## 📝 更新日志 | Changelog
 
 ### v2.0.0

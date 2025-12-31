@@ -1,4 +1,8 @@
 {
+   "name": "__MSG_extName__",
+   "version": "2.0.0",
+   "author": "tekintian",
+  "homepage_url": "https://github.com/tekintian/bookmarks-search",
    "action": {
       "default_popup": "popup.html",
       "default_title": "__MSG_extBtnTitle__"
@@ -9,10 +13,9 @@
    "default_locale": "zh_CN",
    "description": "__MSG_extDesc__",
    "manifest_version": 3,
-   "name": "__MSG_extName__",
+   
    "options_page": "option.html",
    "permissions": [ "tabs", "bookmarks", "scripting" ],
    "host_permissions": [ "<all_urls>" ],
-   "update_url": "https://dev.tekin.cn/extensions/bookmarks-search/crx",
-   "version": "2.0.0"
+   "update_url": "https://dev.tekin.cn/extensions/bookmarks-search/crx"
 }
