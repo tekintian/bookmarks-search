@@ -56,6 +56,9 @@ $(document).ready(function(){
 				switch(check.open(event)){
 					case "tab":
 						chrome.bookmarks.getChildren(root.data("options").id,function (items){
+							if(!items || !Array.isArray(items)){
+								return;
+							}
 							for (var i=0; i < items.length; i++){
 								if(check.bookmarklet(items[i].url)){continue;}
 								chrome.tabs.create( {"url": items[i].url}, function (){});
@@ -77,6 +80,9 @@ $(document).ready(function(){
 				switch(check.open(event)){
 					case "tab":
 						chrome.bookmarks.getRecent(20,function (items){
+							if(!items || !Array.isArray(items)){
+								return;
+							}
 							for (var i=0; i < items.length; i++){
 								if(check.bookmarklet(items[i].url)){continue;}
 								chrome.tabs.create( {"url": items[i].url}, function (){});
@@ -141,10 +147,15 @@ $(document).ready(function(){
 //			if(root.find("span:eq(2)").text()){
 			if(root.find(".item-parent-title>a").text()){
 			}else{
-				chrome.bookmarks.get(root.data("options").parentId, function (item){
-//					root.find("span:eq(2)").text(item[0].title);
-					root.find(".item-parent-title>a").text(item[0].title);
-				});
+				var parentId = root.data("options").parentId;
+				if(parentId){
+					chrome.bookmarks.get(parentId, function (item){
+						if(item && item[0]){
+//							root.find("span:eq(2)").text(item[0].title);
+							root.find(".item-parent-title>a").text(item[0].title);
+						}
+					});
+				}
 			}
 //			$(this).find("span:eq(2)").show()
 			$(this).find(".item-parent-title").show()
@@ -447,6 +458,10 @@ var folder={
 			var docFragm = document.createDocumentFragment();
 			var itemsToRender = [];
 
+			if (!items || !Array.isArray(items)) {
+				items = [];
+			}
+
 			for (var i=0; i < items.length; i++){
 
 				var itemData = {
@@ -511,11 +526,14 @@ var folder={
 		if(id=="1"){
 
 			chrome.bookmarks.getChildren("0",function (items){
+				if(!items || items.length < 2){
+					return;
+				}
 				var root=$("#template-item").clone(true).appendTo("#list");
 				root.attr({id: null,"data-type": "recent"})
 				root.find("span:eq(1)").text("Recently Bookmarks").hide()
 				root.find("span:eq(0)").text(chrome.i18n.getMessage('lbl_recent')).css({"background-image": "url('folder.png')"})
-				
+
 				items[1].parentId="1";
 				var root=$("#template-item").clone(true).appendTo("#list");
 				root.attr({id: null,"data-options": JSON.stringify(items[1]),"data-type": "other"})
@@ -583,6 +601,9 @@ var keybord={
 						switch(check.open(event)){
 							case "tab":
 								chrome.bookmarks.getChildren(elm.data("options").id,function (items){
+									if(!items || !Array.isArray(items)){
+										return;
+									}
 									for (var i=0; i < items.length; i++){
 										if(check.bookmarklet(items[i].url)){continue;}
 										chrome.tabs.create( {"url": items[i].url}, function (){});
@@ -603,6 +624,9 @@ var keybord={
 						switch(check.open(event)){
 							case "tab":
 								chrome.bookmarks.getRecent(20,function (items){
+									if(!items || !Array.isArray(items)){
+										return;
+									}
 									for (var i=0; i < items.length; i++){
 										if(check.bookmarklet(items[i].url)){continue;}
 										chrome.tabs.create( {"url": items[i].url}, function (){});
@@ -1028,6 +1052,9 @@ var dialog={
 var recent={
 	obj: null,
 	check: function(id){
+		if(!recent.obj || !Array.isArray(recent.obj)){
+			return false;
+		}
 		for (var i=0; i < recent.obj.length; i++){
 			if(id==recent.obj[i].id){return true;}
 		}

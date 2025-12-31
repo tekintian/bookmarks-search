@@ -1,4 +1,4 @@
-name: Release Extension
+name: Build Chrome Extension
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 env:
-  CHROME_EXTENSIONS_ZIP: https://github.com/Julusian/chrome-extensions-zip/releases/download/v1.0.0/chrome-extensions-zip-v1.0.0-amd64
+  CRX_KEY_PATH: /tmp/bookmarks-search.pem
 
 jobs:
   build:
@@ -36,14 +36,15 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Extension version: $VERSION"
           
-      - name: Download chrome-extensions-zip tool
+      - name: Install Chromium and utilities
         run: |
-          wget -O chrome-extensions-zip ${{ env.CHROME_EXTENSIONS_ZIP }}
-          chmod +x chrome-extensions-zip
-          
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser zip unzip
+        
       - name: Generate self-signed certificate
         run: |
-          openssl genrsa -out bookmarks-search.pem 2048
+          openssl genrsa -out ${{ env.CRX_KEY_PATH }} 2048
+          echo "Private key generated successfully"
           
       - name: Create release package
         run: |
@@ -57,19 +58,66 @@ jobs:
           zip -r ../bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip *
           cd ..
           
-      - name: Create CRX package
+      - name: Create CRX package using Chromium
         run: |
-          # 使用chrome-extensions-zip工具打包为crx
-          ./chrome-extensions-zip pack \
-            --key bookmarks-search.pem \
-            --output bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx \
-            release
+          # 使用Chromium的打包脚本
+          cat > pack-crx.sh << 'EOF'
+          #!/bin/bash
+          KEY="$1"
+          EXT_DIR="$2"
+          OUTPUT="$3"
           
-      - name: Calculate CRX file hash
+          VERSION=$(grep '"version"' "$EXT_DIR/manifest.json" | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+          
+          # 计算公钥
+          PUB_KEY=$(openssl rsa -in "$KEY" -pubout -outform DER | base64 | tr -d '=+/\\' | tr '\n' '_')
+          
+          # 创建ZIP
+          cd "$EXT_DIR"
+          zip -qr ../tmp-extension.zip .
+          cd ..
+          
+          # 计算签名
+          SIGNATURE=$(openssl sha1 -sha256 -binary -sign "$KEY" tmp-extension.zip | base64 | tr -d '=+/\\' | tr '\n' '_')
+          
+          # CRX文件头
+          echo -n "Cr24" > "$OUTPUT"
+          echo -en "\x03\x00\x00\x00" >> "$OUTPUT"
+          
+          # 公钥长度（小端）
+          KEY_LEN=${#PUB_KEY}
+          KEY_LEN_HEX=$(printf "%08x" $KEY_LEN)
+          echo -ne "\\x${KEY_LEN_HEX:6:2}\\x${KEY_LEN_HEX:4:2}\\x${KEY_LEN_HEX:2:2}\\x${KEY_LEN_HEX:0:2}" >> "$OUTPUT"
+          
+          # 签名长度（小端）
+          SIG_LEN=${#SIGNATURE}
+          SIG_LEN_HEX=$(printf "%08x" $SIG_LEN)
+          echo -ne "\\x${SIG_LEN_HEX:6:2}\\x${SIG_LEN_HEX:4:2}\\x${SIG_LEN_HEX:2:2}\\x${SIG_LEN_HEX:0:2}" >> "$OUTPUT"
+          
+          # 公钥（base64编码）
+          echo -n "$PUB_KEY" | base64 -d >> "$OUTPUT"
+          
+          # 签名（base64编码）
+          echo -n "$SIGNATURE" | base64 -d >> "$OUTPUT"
+          
+          # ZIP内容
+          cat tmp-extension.zip >> "$OUTPUT"
+          
+          rm tmp-extension.zip
+          echo "CRX package created: $OUTPUT"
+          EOF
+          
+          chmod +x pack-crx.sh
+          ./pack-crx.sh ${{ env.CRX_KEY_PATH }} release bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
+          
+      - name: Calculate CRX App ID
         id: crx_hash
         run: |
-          HASH=$(openssl sha1 -binary bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx | xxd -p -u -c 20)
-          echo "HASH=$HASH" >> $GITHUB_OUTPUT
+          # 从CRX文件提取公钥并计算App ID
+          PUB_KEY=$(openssl rsa -in ${{ env.CRX_KEY_PATH }} -pubout -outform DER | base64)
+          APP_ID=$(echo -n "$PUB_KEY" | openssl sha256 -binary | xxd -p -u -c 32 | tr '[:lower:]' '[:upper:]' | head -c 32)
+          echo "HASH=$APP_ID" >> $GITHUB_OUTPUT
+          echo "CRX App ID: $APP_ID"
           
       - name: Create Release
         id: create_release
@@ -129,7 +177,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: extension-certificate
-          path: bookmarks-search.pem
+          path: ${{ env.CRX_KEY_PATH }}
           retention-days: 90
           
       - name: Generate build info

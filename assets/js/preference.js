@@ -27,7 +27,7 @@ window.onload=function(){
 	}
 }
 
-$(window).unload(function() {
+$(window).on('beforeunload', function() {
 	var prefs=document.querySelectorAll("preference");
 	for (var i=0; i < prefs.length; i++){
 		var pref=document.querySelectorAll("[preference="+prefs[i].getAttribute("name")+"]");
