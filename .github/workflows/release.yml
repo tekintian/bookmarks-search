@@ -58,57 +58,79 @@ jobs:
           zip -r ../bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip *
           cd ..
           
-      - name: Create CRX package using Chromium
+      - name: Create CRX package using Python
         run: |
-          # 使用Chromium的打包脚本
-          cat > pack-crx.sh << 'EOF'
-          #!/bin/bash
-          KEY="$1"
-          EXT_DIR="$2"
-          OUTPUT="$3"
-          
-          VERSION=$(grep '"version"' "$EXT_DIR/manifest.json" | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-          
-          # 计算公钥
-          PUB_KEY=$(openssl rsa -in "$KEY" -pubout -outform DER | base64 | tr -d '=+/\\' | tr '\n' '_')
-          
-          # 创建ZIP
-          cd "$EXT_DIR"
-          zip -qr ../tmp-extension.zip .
-          cd ..
-          
-          # 计算签名
-          SIGNATURE=$(openssl sha1 -sha256 -binary -sign "$KEY" tmp-extension.zip | base64 | tr -d '=+/\\' | tr '\n' '_')
-          
-          # CRX文件头
-          echo -n "Cr24" > "$OUTPUT"
-          echo -en "\x03\x00\x00\x00" >> "$OUTPUT"
-          
-          # 公钥长度（小端）
-          KEY_LEN=${#PUB_KEY}
-          KEY_LEN_HEX=$(printf "%08x" $KEY_LEN)
-          echo -ne "\\x${KEY_LEN_HEX:6:2}\\x${KEY_LEN_HEX:4:2}\\x${KEY_LEN_HEX:2:2}\\x${KEY_LEN_HEX:0:2}" >> "$OUTPUT"
-          
-          # 签名长度（小端）
-          SIG_LEN=${#SIGNATURE}
-          SIG_LEN_HEX=$(printf "%08x" $SIG_LEN)
-          echo -ne "\\x${SIG_LEN_HEX:6:2}\\x${SIG_LEN_HEX:4:2}\\x${SIG_LEN_HEX:2:2}\\x${SIG_LEN_HEX:0:2}" >> "$OUTPUT"
-          
-          # 公钥（base64编码）
-          echo -n "$PUB_KEY" | base64 -d >> "$OUTPUT"
-          
-          # 签名（base64编码）
-          echo -n "$SIGNATURE" | base64 -d >> "$OUTPUT"
-          
-          # ZIP内容
-          cat tmp-extension.zip >> "$OUTPUT"
-          
-          rm tmp-extension.zip
-          echo "CRX package created: $OUTPUT"
-          EOF
-          
-          chmod +x pack-crx.sh
-          ./pack-crx.sh ${{ env.CRX_KEY_PATH }} release bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
+          # 使用Python创建CRX v3文件（更可靠）
+          cat > pack_crx.py << 'PYEOF'
+          #!/usr/bin/env python3
+          import struct
+          import subprocess
+          import zipfile
+          import sys
+          import os
+
+          def create_crx(key_path, ext_dir, output_path):
+              # 1. 创建扩展ZIP
+              print("Creating extension ZIP...")
+              with zipfile.ZipFile('extension.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+                  for root, dirs, files in os.walk(ext_dir):
+                      for file in files:
+                          file_path = os.path.join(root, file)
+                          arcname = os.path.relpath(file_path, ext_dir)
+                          zf.write(file_path, arcname)
+
+              # 2. 提取公钥
+              print("Extracting public key...")
+              result = subprocess.run(
+                  ['openssl', 'rsa', '-in', key_path, '-pubout', '-outform', 'DER'],
+                  capture_output=True
+              )
+              public_key = result.stdout
+              public_key_len = len(public_key)
+
+              # 3. 计算签名
+              print("Computing signature...")
+              with open('extension.zip', 'rb') as f:
+                  zip_data = f.read()
+
+              result = subprocess.run(
+                  ['openssl', 'dgst', '-sha256', '-binary', '-sign', key_path],
+                  input=zip_data,
+                  capture_output=True
+              )
+              signature = result.stdout
+              signature_len = len(signature)
+
+              # 4. 构建CRX文件头 (CRX3格式)
+              print("Building CRX header...")
+              header = b'Cr24'  # 魔数
+              header += struct.pack('<I', 3)  # 版本号
+              header += struct.pack('<I', public_key_len)  # 公钥长度
+              header += struct.pack('<I', signature_len)  # 签名长度
+
+              # 5. 写入CRX文件
+              print(f"Writing CRX file to {output_path}...")
+              with open(output_path, 'wb') as f:
+                  f.write(header)
+                  f.write(public_key)
+                  f.write(signature)
+                  f.write(zip_data)
+
+              # 6. 清理
+              os.remove('extension.zip')
+
+              print(f"CRX package created successfully!")
+              print(f"Public key length: {public_key_len}")
+              print(f"Signature length: {signature_len}")
+              print(f"ZIP length: {len(zip_data)}")
+
+          if __name__ == '__main__':
+              key_path, ext_dir, output_path = sys.argv[1], sys.argv[2], sys.argv[3]
+              create_crx(key_path, ext_dir, output_path)
+          PYEOF
+
+          chmod +x pack_crx.py
+          python3 pack_crx.py ${{ env.CRX_KEY_PATH }} release bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx
           
       - name: Calculate CRX App ID
         id: crx_hash
@@ -124,14 +146,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
             ## 🚀 Release Notes
-            
+
             Bookmarks Search Extension v${{ steps.get_version.outputs.VERSION }}
-            
+
             ## 📦 Installation
-            
+
             ### ZIP Package (Recommended for Development)
             1. Download `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.zip`
             2. Extract to any folder
@@ -139,15 +161,15 @@ jobs:
             4. Enable "Developer mode" (top right)
             5. Click "Load unpacked"
             6. Select the extracted folder
-            
+
             ### CRX Package
             1. Download `bookmarks-search-${{ steps.get_version.outputs.VERSION }}.crx`
             2. Drag and drop to `chrome://extensions/` page
             3. Confirm installation when prompted
-            
+
             ### Using Certificate
             CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
-            
+
             ## 📝 Changelog
             See project homepage for full changelog
           draft: false
@@ -182,13 +204,13 @@ jobs:
           
       - name: Generate build info
         run: |
-          cat > build-info.txt << EOF
+          cat > build-info.txt << 'BUILDEOF'
           Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           Version: ${{ steps.get_version.outputs.VERSION }}
           Commit: ${{ github.sha }}
           Tag: ${{ github.ref_name }}
           CRX App ID: ${{ steps.crx_hash.outputs.HASH }}
-          EOF
+          BUILDEOF
           
       - name: Upload build info
         uses: actions/upload-artifact@v4
